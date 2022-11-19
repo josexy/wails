@@ -199,8 +199,8 @@ func (b *BaseBuilder) CompileProject(options *Options) error {
 
 	// Add better debugging flags
 	if options.Mode == Dev || options.Mode == Debug {
-		commands.Add("-gcflags")
-		commands.Add("all=-N -l")
+		// commands.Add("-gcflags")
+		// commands.Add("all=-N -l")
 	}
 
 	if options.ForceBuild {

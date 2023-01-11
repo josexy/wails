@@ -16,6 +16,12 @@ type BindingTest struct {
 	exemptions  []interface{}
 	want        string
 	shouldError bool
+	TsGenerationOptionsTest
+}
+
+type TsGenerationOptionsTest struct {
+	TsPrefix string
+	TsSuffix string
 }
 
 func TestBindings_GenerateModels(t *testing.T) {
@@ -30,6 +36,9 @@ func TestBindings_GenerateModels(t *testing.T) {
 		SingleFieldTest,
 		MultistructTest,
 		EmptyStructTest,
+		GeneratedJsEntityTest,
+		AnonymousSubStructTest,
+		AnonymousSubStructMultiLevelTest,
 	}
 
 	testLogger := &logger.Logger{}
@@ -40,6 +49,10 @@ func TestBindings_GenerateModels(t *testing.T) {
 				err := b.Add(s)
 				require.NoError(t, err)
 			}
+			b.SetTsPrefix(tt.TsPrefix)
+
+			// TODO - rename this to  SetTsSuffix
+			b.SetTsSuffix(tt.TsSuffix)
 			got, err := b.GenerateModels()
 			if (err != nil) != tt.shouldError {
 				t.Errorf("GenerateModels() error = %v, shouldError %v", err, tt.shouldError)

@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"syscall"
 	"unsafe"
@@ -15,6 +16,8 @@ import (
 	"github.com/wailsapp/wails/v2/internal/frontend/desktop/windows/go-webview2/internal/w32"
 	"golang.org/x/sys/windows"
 )
+
+type Rect = w32.Rect
 
 type Chromium struct {
 	hwnd                  uintptr
@@ -31,10 +34,13 @@ type Chromium struct {
 
 	environment *ICoreWebView2Environment
 
+	padding Rect
+
 	// Settings
-	Debug       bool
-	DataPath    string
-	BrowserPath string
+	Debug                 bool
+	DataPath              string
+	BrowserPath           string
+	AdditionalBrowserArgs []string
 
 	// permissions
 	permissions      map[CoreWebView2PermissionKind]CoreWebView2PermissionState
@@ -94,7 +100,8 @@ func (e *Chromium) Embed(hwnd uintptr) bool {
 		}
 	}
 
-	if err := createCoreWebView2EnvironmentWithOptions(e.BrowserPath, dataPath, e.envCompleted); err != nil {
+	browserArgs := strings.Join(e.AdditionalBrowserArgs, " ")
+	if err := createCoreWebView2EnvironmentWithOptions(e.BrowserPath, dataPath, e.envCompleted, browserArgs); err != nil {
 		log.Printf("Error calling Webview2Loader: %v", err)
 		return false
 	}
@@ -118,6 +125,33 @@ func (e *Chromium) Embed(hwnd uintptr) bool {
 	}
 	e.Init("window.external={invoke:s=>window.chrome.webview.postMessage(s)}")
 	return true
+}
+
+func (e *Chromium) SetPadding(padding Rect) {
+	if e.padding.Top == padding.Top && e.padding.Bottom == padding.Bottom &&
+		e.padding.Left == padding.Left && e.padding.Right == padding.Right {
+
+		return
+	}
+
+	e.padding = padding
+	e.Resize()
+}
+
+func (e *Chromium) Resize() {
+	if e.hwnd == 0 {
+		return
+	}
+
+	var bounds w32.Rect
+	w32.User32GetClientRect.Call(e.hwnd, uintptr(unsafe.Pointer(&bounds)))
+
+	bounds.Top += e.padding.Top
+	bounds.Bottom -= e.padding.Bottom
+	bounds.Left += e.padding.Left
+	bounds.Right -= e.padding.Right
+
+	e.SetSize(bounds)
 }
 
 func (e *Chromium) Navigate(url string) {

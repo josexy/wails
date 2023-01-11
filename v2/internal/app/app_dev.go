@@ -12,8 +12,9 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/wailsapp/wails/v2/pkg/assetserver"
+
 	"github.com/wailsapp/wails/v2/internal/binding"
-	"github.com/wailsapp/wails/v2/internal/frontend/assetserver"
 	"github.com/wailsapp/wails/v2/internal/frontend/desktop"
 	"github.com/wailsapp/wails/v2/internal/frontend/devserver"
 	"github.com/wailsapp/wails/v2/internal/frontend/dispatcher"
@@ -91,7 +92,10 @@ func CreateApp(appoptions *options.App) (*App, error) {
 		}
 	}
 
-	assetConfig := assetserver.BuildAssetServerConfig(appoptions)
+	assetConfig, err := assetserver.BuildAssetServerConfig(appoptions)
+	if err != nil {
+		return nil, err
+	}
 
 	if assetConfig.Assets == nil && frontendDevServerURL != "" {
 		myLogger.Warning("No AssetServer.Assets has been defined but a frontend DevServer, the frontend DevServer will not be used.")
@@ -118,7 +122,7 @@ func CreateApp(appoptions *options.App) (*App, error) {
 			// If no assetdir has been defined, let's try to infer it from the project root and the asset FS.
 			assetdir, err = tryInferAssetDirFromFS(assetConfig.Assets)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("unable to infer the AssetDir from your Assets fs.FS: %w", err)
 			}
 		}
 

@@ -22,13 +22,14 @@ import (
 	"github.com/bep/debounce"
 	"github.com/wailsapp/wails/v2/internal/binding"
 	"github.com/wailsapp/wails/v2/internal/frontend"
-	"github.com/wailsapp/wails/v2/internal/frontend/assetserver"
 	"github.com/wailsapp/wails/v2/internal/frontend/desktop/windows/go-webview2/pkg/edge"
 	"github.com/wailsapp/wails/v2/internal/frontend/desktop/windows/win32"
 	"github.com/wailsapp/wails/v2/internal/frontend/desktop/windows/winc"
 	"github.com/wailsapp/wails/v2/internal/frontend/desktop/windows/winc/w32"
+	wailsruntime "github.com/wailsapp/wails/v2/internal/frontend/runtime"
 	"github.com/wailsapp/wails/v2/internal/logger"
 	"github.com/wailsapp/wails/v2/internal/system/operatingsystem"
+	"github.com/wailsapp/wails/v2/pkg/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/windows"
 )
@@ -102,7 +103,7 @@ func NewFrontend(ctx context.Context, appoptions *options.App, myLogger *logger.
 		appBindings.DB().UpdateObfuscatedCallMap()
 	}
 
-	assets, err := assetserver.NewAssetServerMainPage(ctx, bindings, appoptions)
+	assets, err := assetserver.NewAssetServerMainPage(bindings, appoptions, ctx.Value("assetdir") != nil, myLogger, wailsruntime.RuntimeAssetsBundle)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -130,7 +131,9 @@ func (f *Frontend) WindowSetDarkTheme() {
 func (f *Frontend) Run(ctx context.Context) error {
 	f.ctx = ctx
 
-	mainWindow := NewWindow(nil, f.frontendOptions, f.versionInfo)
+	f.chromium = edge.NewChromium()
+
+	mainWindow := NewWindow(nil, f.frontendOptions, f.versionInfo, f.chromium)
 	f.mainWindow = mainWindow
 
 	var _debug = ctx.Value("debug")
@@ -140,8 +143,6 @@ func (f *Frontend) Run(ctx context.Context) error {
 
 	f.WindowCenter()
 	f.setupChromium()
-
-	f.mainWindow.notifyParentWindowPositionChanged = f.chromium.NotifyParentWindowPositionChanged
 
 	mainWindow.OnSize().Bind(func(arg *winc.Event) {
 		if f.frontendOptions.Frameless {
@@ -295,6 +296,9 @@ func (f *Frontend) WindowToggleMaximise() {
 func (f *Frontend) WindowUnmaximise() {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	if f.mainWindow.Form.IsFullScreen() {
+		return
+	}
 	f.mainWindow.Restore()
 }
 
@@ -311,6 +315,9 @@ func (f *Frontend) WindowMinimise() {
 func (f *Frontend) WindowUnminimise() {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	if f.mainWindow.Form.IsFullScreen() {
+		return
+	}
 	f.mainWindow.Restore()
 }
 
@@ -331,6 +338,8 @@ func (f *Frontend) WindowSetBackgroundColour(col *options.RGBA) {
 	}
 
 	f.mainWindow.Invoke(func() {
+		win32.SetBackgroundColour(f.mainWindow.Handle(), col.R, col.G, col.B)
+
 		controller := f.chromium.GetController()
 		controller2 := controller.GetICoreWebView2Controller2()
 
@@ -341,7 +350,7 @@ func (f *Frontend) WindowSetBackgroundColour(col *options.RGBA) {
 			B: col.B,
 		}
 
-		// Webview2 only has 0 and 255 as valid values.
+		// WebView2 only has 0 and 255 as valid values.
 		if backgroundCol.A > 0 && backgroundCol.A < 255 {
 			backgroundCol.A = 255
 		}
@@ -406,12 +415,27 @@ func (f *Frontend) Quit() {
 }
 
 func (f *Frontend) setupChromium() {
-	chromium := edge.NewChromium()
-	f.chromium = chromium
+	chromium := f.chromium
+
+	disableFeatues := []string{}
+	if !f.frontendOptions.EnableFraudulentWebsiteDetection {
+		disableFeatues = append(disableFeatues, "msSmartScreenProtection")
+	}
+
 	if opts := f.frontendOptions.Windows; opts != nil {
 		chromium.DataPath = opts.WebviewUserDataPath
 		chromium.BrowserPath = opts.WebviewBrowserPath
+
+		if opts.WebviewGpuIsDisabled {
+			chromium.AdditionalBrowserArgs = append(chromium.AdditionalBrowserArgs, "--disable-gpu")
+		}
 	}
+
+	if len(disableFeatues) > 0 {
+		arg := fmt.Sprintf("--disable-features=%s", strings.Join(disableFeatues, ","))
+		chromium.AdditionalBrowserArgs = append(chromium.AdditionalBrowserArgs, arg)
+	}
+
 	chromium.MessageCallback = f.processMessage
 	chromium.WebResourceRequestedCallback = f.processRequest
 	chromium.NavigationCompletedCallback = f.navigationCompleted
@@ -419,9 +443,9 @@ func (f *Frontend) setupChromium() {
 		w32.PostMessage(f.mainWindow.Handle(), w32.WM_KEYDOWN, uintptr(vkey), 0)
 		return false
 	}
+
 	chromium.Embed(f.mainWindow.Handle())
 	chromium.Resize()
-	f.mainWindow.chromium = chromium
 	settings, err := chromium.GetSettings()
 	if err != nil {
 		log.Fatal(err)

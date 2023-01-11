@@ -112,9 +112,9 @@ go env -w GOPROXY=https://goproxy.cn,direct
 
 Source: https://github.com/wailsapp/wails/issues/1233
 
-## The generated Typescript doesn't have the correct types
+## The generated TypeScript doesn't have the correct types
 
-Sometimes the generated Typescript doesn't have the correct types. To mitigate this,
+Sometimes the generated TypeScript doesn't have the correct types. To mitigate this,
 it is possible to specify what types should be generated using the `ts_type` struct tag. For
 more details, please read [this](https://github.com/tkrajina/typescriptify-golang-structs#custom-types).
 
@@ -174,3 +174,7 @@ It's preferable to add `frontend/node_modules` and `frontend/package-lock.json` 
 that may have different versions of Node installed, you may not be able to run your application.
 
 If this does happen, simply delete `frontend/node_modules` and `frontend/package-lock.json` and run your `wails build` or `wails dev` command again. 
+
+## Build process stuck on "Generating bindings"
+
+Bindings generation process runs your application in a special mode. If application, intentionally or unintentionally, contains an endless loop (i.e. not exiting after `wails.Run()` finished), this can lead to build process stuck on the stage of bindings generation. Please make sure your code exits properly.

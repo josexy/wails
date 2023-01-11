@@ -376,7 +376,7 @@ func FindPathToFile(fsys fs.FS, file string) (string, error) {
 		path, _ := filepath.Split(indexFiles.AsSlice()[0])
 		return path, nil
 	}
-	return "", fmt.Errorf("no index.html found")
+	return "", fmt.Errorf("%s: %w", file, os.ErrNotExist)
 }
 
 // FindFileInParents searches for a file in the current directory and all parent directories.

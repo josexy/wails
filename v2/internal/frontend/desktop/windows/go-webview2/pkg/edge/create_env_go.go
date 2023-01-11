@@ -1,4 +1,4 @@
-//go:build exp_gowebview2loader
+//go:build windows && !native_webview2loader
 
 package edge
 
@@ -8,12 +8,13 @@ import (
 	"github.com/wailsapp/wails/v2/internal/frontend/desktop/windows/go-webview2/webviewloader"
 )
 
-func createCoreWebView2EnvironmentWithOptions(browserExecutableFolder, userDataFolder string, environmentCompletedHandle *iCoreWebView2CreateCoreWebView2EnvironmentCompletedHandler) error {
+func createCoreWebView2EnvironmentWithOptions(browserExecutableFolder, userDataFolder string, environmentCompletedHandle *iCoreWebView2CreateCoreWebView2EnvironmentCompletedHandler, additionalBrowserArgs string) error {
 	e := &environmentCreatedHandler{environmentCompletedHandle}
 	return webviewloader.CreateCoreWebView2EnvironmentWithOptions(
 		e,
 		webviewloader.WithBrowserExecutableFolder(browserExecutableFolder),
 		webviewloader.WithUserDataFolder(userDataFolder),
+		webviewloader.WithAdditionalBrowserArguments(additionalBrowserArgs),
 	)
 }
 
